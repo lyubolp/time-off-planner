@@ -19,9 +19,9 @@
       { "name": "title", "type": "text", "required": true, "options": { "min": 1, "max": 120, "pattern": "" } },
       { "name": "start_date", "type": "date", "required": true, "options": { "min": "", "max": "" } },
       { "name": "end_date", "type": "date", "required": true, "options": { "min": "", "max": "" } },
-      { "name": "total_days", "type": "number", "required": true, "options": { "min": 0, "max": 365, "noDecimal": false } },
-      { "name": "planned_days", "type": "number", "required": true, "options": { "min": 0, "max": 365, "noDecimal": false } },
-      { "name": "taken_days", "type": "number", "required": true, "options": { "min": 0, "max": 365, "noDecimal": false } }
+      { "name": "total_days", "type": "number", "required": true, "options": { "min": 0, "max": 365, "noDecimal": true } },
+      { "name": "planned_days", "type": "number", "required": true, "options": { "min": 0, "max": 365, "noDecimal": true } },
+      { "name": "taken_days", "type": "number", "required": true, "options": { "min": 0, "max": 365, "noDecimal": true } }
     ],
     "listRule": "",
     "viewRule": "",
@@ -33,7 +33,7 @@
     "name": "app_settings",
     "type": "base",
     "schema": [
-      { "name": "yearly_allowance", "type": "number", "required": true, "options": { "min": 0, "max": 365, "noDecimal": false } }
+      { "name": "yearly_allowance", "type": "number", "required": true, "options": { "min": 0, "max": 365, "noDecimal": true } }
     ],
     "listRule": "",
     "viewRule": "",

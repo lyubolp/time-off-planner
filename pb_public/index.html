@@ -213,7 +213,7 @@
           const [holidays, timeOffs, settings] = await Promise.all([
             this.safeList('holidays', { sort: 'date' }),
             this.safeList('time_offs', { sort: '-start_date' }),
-            this.safeList('app_settings', { batch: 1 })
+            this.safeList('app_settings', { perPage: 1 })
           ]);
 
           this.holidays = holidays;
@@ -229,14 +229,53 @@
 
         async safeList(collection, options = {}) {
           try {
-            const batch = options.batch ?? DEFAULT_BATCH_SIZE;
+            const perPage = options.perPage ?? DEFAULT_BATCH_SIZE;
             const query = { ...options };
-            delete query.batch;
-            return await pb.collection(collection).getFullList(batch, query);
+            delete query.perPage;
+
+            let page = 1;
+            let items = [];
+
+            while (true) {
+              const result = await pb.collection(collection).getList(page, perPage, query);
+              items = items.concat(result.items);
+              if (page >= result.totalPages) break;
+              page += 1;
+            }
+
+            return items;
           } catch (error) {
             console.warn(`Missing collection or inaccessible data: ${collection}`, error);
             return [];
           }
+        },
+
+        parseCsvLine(line) {
+          const result = [];
+          let current = '';
+          let inQuotes = false;
+
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            const next = line[i + 1];
+
+            if (char === '\"') {
+              if (inQuotes && next === '\"') {
+                current += '\"';
+                i++;
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if (char === ',' && !inQuotes) {
+              result.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+
+          result.push(current.trim());
+          return result;
         },
 
         async saveSettings() {
@@ -265,17 +304,19 @@
               .filter(Boolean)
               .slice(1)
               .map((line) => {
-                const [date, ...titleParts] = line.split(',');
+                const [date, ...titleParts] = this.parseCsvLine(line);
                 return { date: date?.trim(), title: titleParts.join(',').trim() };
               });
           }
 
+          const existing = new Set(this.holidays.map((h) => `${h.date}|${h.title}`));
           for (const row of rows) {
             if (!row.date || !row.title) continue;
             const date = row.date.slice(0, 10);
-            const exists = this.holidays.find((h) => h.date === date && h.title === row.title);
-            if (!exists) {
+            const key = `${date}|${row.title}`;
+            if (!existing.has(key)) {
               await pb.collection('holidays').create({ date, title: row.title });
+              existing.add(key);
             }
           }
 
