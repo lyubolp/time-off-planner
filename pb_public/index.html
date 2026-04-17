@@ -186,6 +186,7 @@
     function timeOffPlanner() {
       const pb = new PocketBase(window.location.origin);
       const toDateString = (value) => new Date(value).toISOString().slice(0, 10);
+      const DEFAULT_BATCH_SIZE = 200;
 
       return {
         theme: localStorage.getItem('theme') || 'light',
@@ -228,7 +229,7 @@
 
         async safeList(collection, options = {}) {
           try {
-            const batch = options.batch ?? 200;
+            const batch = options.batch ?? DEFAULT_BATCH_SIZE;
             const query = { ...options };
             delete query.batch;
             return await pb.collection(collection).getFullList(batch, query);

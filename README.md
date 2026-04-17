@@ -49,3 +49,8 @@ date,title
 ## Notes
 - This app is intentionally single-user and uses open collection rules for simple personal usage.
 - The app is served directly by PocketBase from `pb_public/index.html`.
+
+## Security for single-user mode
+- The provided schema intentionally uses open collection rules for a simple single-user setup.
+- Run PocketBase on localhost/private network only (for example `127.0.0.1`) and do not expose it publicly without adding auth rules.
+- If internet exposure is needed, add authentication and tighten `list/view/create/update/delete` rules before deployment.
