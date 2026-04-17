@@ -210,9 +210,9 @@
 
         async loadData() {
           const [holidays, timeOffs, settings] = await Promise.all([
-            this.safeList('holidays', { sort: 'date', perPage: 500 }),
-            this.safeList('time_offs', { sort: '-start_date', perPage: 500 }),
-            this.safeList('app_settings', { perPage: 1 })
+            this.safeList('holidays', { sort: 'date' }),
+            this.safeList('time_offs', { sort: '-start_date' }),
+            this.safeList('app_settings', { batch: 1 })
           ]);
 
           this.holidays = holidays;
@@ -228,11 +228,10 @@
 
         async safeList(collection, options = {}) {
           try {
-            const perPage = options.perPage ?? 100;
+            const batch = options.batch ?? 200;
             const query = { ...options };
-            delete query.perPage;
-            const result = await pb.collection(collection).getList(1, perPage, query);
-            return result.items;
+            delete query.batch;
+            return await pb.collection(collection).getFullList(batch, query);
           } catch (error) {
             console.warn(`Missing collection or inaccessible data: ${collection}`, error);
             return [];
