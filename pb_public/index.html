@@ -87,8 +87,8 @@
     .day.timeoff { background: color-mix(in srgb, var(--timeoff) 45%, transparent); }
     .day.today { outline: 2px solid var(--today); }
     .tag { font-size: .65rem; border-radius: 999px; padding: .05rem .35rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .tag.holiday { background: var(--holiday); color: #fff; }
-    .tag.timeoff { background: var(--timeoff); color: #fff; }
+    .tag.holiday { background: var(--holiday); color: var(--text); }
+    .tag.timeoff { background: var(--timeoff); color: var(--text); }
     table { width: 100%; border-collapse: collapse; font-size: .9rem; }
     th, td { text-align: left; border-bottom: 1px solid var(--border); padding: .5rem .25rem; }
     .actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: end; }
@@ -226,9 +226,12 @@
           this.buildMonths();
         },
 
-        async safeList(collection, options) {
+        async safeList(collection, options = {}) {
           try {
-            const result = await pb.collection(collection).getList(1, options.perPage || 100, options);
+            const perPage = options.perPage ?? 100;
+            const query = { ...options };
+            delete query.perPage;
+            const result = await pb.collection(collection).getList(1, perPage, query);
             return result.items;
           } catch (error) {
             console.warn(`Missing collection or inaccessible data: ${collection}`, error);
