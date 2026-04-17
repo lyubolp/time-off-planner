@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en" x-data="timeOffPlanner()" x-init="init()" :class="theme">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Time Off Planner</title>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/pocketbase@0.21.5/dist/pocketbase.umd.js"></script>
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --surface: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --accent: #4f46e5;
+      --border: #e5e7eb;
+      --holiday: #fde68a;
+      --timeoff: #bfdbfe;
+      --today: #34d399;
+    }
+    .dark {
+      --bg: #111827;
+      --surface: #1f2937;
+      --text: #f9fafb;
+      --muted: #9ca3af;
+      --accent: #818cf8;
+      --border: #374151;
+      --holiday: #78350f;
+      --timeoff: #1e3a8a;
+      --today: #065f46;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 8px 20px rgba(0,0,0,.05);
+    }
+    .top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .grid { display: grid; gap: 1rem; }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .stats { font-size: 1.7rem; font-weight: 700; }
+    label { font-size: .9rem; color: var(--muted); display: block; margin-bottom: .3rem; }
+    input, button, select {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 10px;
+      padding: .6rem .75rem;
+      font: inherit;
+    }
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      cursor: pointer;
+      width: auto;
+    }
+    .button-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .75rem; }
+    .calendar-wrap { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: .75rem; }
+    .calendar { border: 1px solid var(--border); border-radius: 12px; padding: .75rem; }
+    .calendar h3 { margin: .2rem 0 .8rem; }
+    .weekdays, .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: .25rem; }
+    .weekdays div { color: var(--muted); font-size: .75rem; text-align: center; }
+    .day {
+      min-height: 62px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: .75rem;
+      padding: .2rem;
+      display: flex;
+      flex-direction: column;
+      gap: .2rem;
+    }
+    .day.holiday { background: color-mix(in srgb, var(--holiday) 45%, transparent); }
+    .day.timeoff { background: color-mix(in srgb, var(--timeoff) 45%, transparent); }
+    .day.today { outline: 2px solid var(--today); }
+    .tag { font-size: .65rem; border-radius: 999px; padding: .05rem .35rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tag.holiday { background: var(--holiday); color: #fff; }
+    .tag.timeoff { background: var(--timeoff); color: #fff; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th, td { text-align: left; border-bottom: 1px solid var(--border); padding: .5rem .25rem; }
+    .actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: end; }
+    .muted { color: var(--muted); font-size: .86rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card top">
+      <div>
+        <h1 style="margin:.2rem 0">Time Off Planner</h1>
+        <div class="muted">PocketBase + Alpine.js single-user planner</div>
+      </div>
+      <button class="button-secondary" @click="toggleTheme()" x-text="theme === 'dark' ? 'Switch to Light' : 'Switch to Dark'"></button>
+    </div>
+
+    <div class="grid grid-3">
+      <div class="card"><label>Total entitlement</label><div class="stats" x-text="totals.total"></div></div>
+      <div class="card"><label>Unused (not taken yet)</label><div class="stats" x-text="totals.unused"></div></div>
+      <div class="card"><label>Unplanned (not planned yet)</label><div class="stats" x-text="totals.unplanned"></div></div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">Settings & holiday import</h2>
+      <div class="actions">
+        <div>
+          <label>Yearly entitlement days</label>
+          <input type="number" min="0" x-model.number="yearlyAllowance" />
+        </div>
+        <button @click="saveSettings()">Save allowance</button>
+        <div>
+          <label>Import official holidays (.json or .csv)</label>
+          <input type="file" accept=".json,.csv,text/csv,application/json" @change="importHolidays($event)" />
+          <div class="muted">Format: date,title (CSV) or [{"date":"YYYY-MM-DD","title":"Holiday"}]</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">Add time off</h2>
+      <div class="row">
+        <div><label>Title</label><input x-model="form.title" placeholder="Vacation" /></div>
+        <div><label>Start date</label><input type="date" x-model="form.start_date" /></div>
+        <div><label>End date</label><input type="date" x-model="form.end_date" /></div>
+        <div><label>Total days</label><input type="number" min="0" x-model.number="form.total_days" /></div>
+        <div><label>Planned days</label><input type="number" min="0" x-model.number="form.planned_days" /></div>
+        <div><label>Taken days</label><input type="number" min="0" x-model.number="form.taken_days" /></div>
+      </div>
+      <div style="margin-top:.75rem"><button @click="addTimeOff()">Add</button></div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">Dashboard calendar</h2>
+      <div class="calendar-wrap">
+        <template x-for="month in months" :key="month.key">
+          <div class="calendar">
+            <h3 x-text="month.label"></h3>
+            <div class="weekdays"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>
+            <div class="days">
+              <template x-for="day in month.days" :key="day.key">
+                <div class="day" :class="{'holiday':day.hasHoliday,'timeoff':day.hasTimeOff,'today':day.isToday}" :style="day.empty ? 'visibility:hidden' : ''">
+                  <strong x-text="day.empty ? '' : day.date.split('-')[2]"></strong>
+                  <template x-for="tag in day.tags" :key="tag.text + tag.type"><span class="tag" :class="tag.type" x-text="tag.text"></span></template>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">History & future time offs</h2>
+      <table>
+        <thead>
+          <tr><th>Title</th><th>Start</th><th>End</th><th>Total</th><th>Planned</th><th>Taken</th></tr>
+        </thead>
+        <tbody>
+          <template x-for="item in timeOffs" :key="item.id">
+            <tr>
+              <td x-text="item.title"></td>
+              <td x-text="item.start_date"></td>
+              <td x-text="item.end_date"></td>
+              <td x-text="item.total_days"></td>
+              <td x-text="item.planned_days"></td>
+              <td x-text="item.taken_days"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    function timeOffPlanner() {
+      const pb = new PocketBase(window.location.origin);
+      const toDateString = (value) => new Date(value).toISOString().slice(0, 10);
+
+      return {
+        theme: localStorage.getItem('theme') || 'light',
+        yearlyAllowance: 25,
+        settingsId: null,
+        holidays: [],
+        timeOffs: [],
+        months: [],
+        totals: { total: 0, unused: 0, unplanned: 0 },
+        form: { title: '', start_date: '', end_date: '', total_days: 1, planned_days: 1, taken_days: 0 },
+
+        async init() {
+          document.documentElement.classList.toggle('dark', this.theme === 'dark');
+          await this.loadData();
+        },
+
+        toggleTheme() {
+          this.theme = this.theme === 'dark' ? 'light' : 'dark';
+          localStorage.setItem('theme', this.theme);
+          document.documentElement.classList.toggle('dark', this.theme === 'dark');
+        },
+
+        async loadData() {
+          const [holidays, timeOffs, settings] = await Promise.all([
+            this.safeList('holidays', { sort: 'date', perPage: 500 }),
+            this.safeList('time_offs', { sort: '-start_date', perPage: 500 }),
+            this.safeList('app_settings', { perPage: 1 })
+          ]);
+
+          this.holidays = holidays;
+          this.timeOffs = timeOffs;
+          if (settings[0]) {
+            this.settingsId = settings[0].id;
+            this.yearlyAllowance = Number(settings[0].yearly_allowance || 25);
+          }
+
+          this.computeTotals();
+          this.buildMonths();
+        },
+
+        async safeList(collection, options) {
+          try {
+            const result = await pb.collection(collection).getList(1, options.perPage || 100, options);
+            return result.items;
+          } catch (error) {
+            console.warn(`Missing collection or inaccessible data: ${collection}`, error);
+            return [];
+          }
+        },
+
+        async saveSettings() {
+          const payload = { yearly_allowance: Number(this.yearlyAllowance || 0) };
+          if (this.settingsId) {
+            await pb.collection('app_settings').update(this.settingsId, payload);
+          } else {
+            const created = await pb.collection('app_settings').create(payload);
+            this.settingsId = created.id;
+          }
+          this.computeTotals();
+        },
+
+        async importHolidays(event) {
+          const file = event.target.files?.[0];
+          if (!file) return;
+
+          const content = await file.text();
+          let rows = [];
+
+          if (file.name.endsWith('.json')) {
+            rows = JSON.parse(content);
+          } else {
+            rows = content.split(/\r?\n/)
+              .map((line) => line.trim())
+              .filter(Boolean)
+              .slice(1)
+              .map((line) => {
+                const [date, ...titleParts] = line.split(',');
+                return { date: date?.trim(), title: titleParts.join(',').trim() };
+              });
+          }
+
+          for (const row of rows) {
+            if (!row.date || !row.title) continue;
+            const date = row.date.slice(0, 10);
+            const exists = this.holidays.find((h) => h.date === date && h.title === row.title);
+            if (!exists) {
+              await pb.collection('holidays').create({ date, title: row.title });
+            }
+          }
+
+          event.target.value = '';
+          await this.loadData();
+        },
+
+        async addTimeOff() {
+          if (!this.form.title || !this.form.start_date || !this.form.end_date) return;
+
+          await pb.collection('time_offs').create({
+            title: this.form.title.trim(),
+            start_date: this.form.start_date,
+            end_date: this.form.end_date,
+            total_days: Number(this.form.total_days || 0),
+            planned_days: Number(this.form.planned_days || 0),
+            taken_days: Number(this.form.taken_days || 0)
+          });
+
+          this.form = { title: '', start_date: '', end_date: '', total_days: 1, planned_days: 1, taken_days: 0 };
+          await this.loadData();
+        },
+
+        computeTotals() {
+          const planned = this.timeOffs.reduce((sum, t) => sum + Number(t.planned_days || 0), 0);
+          const taken = this.timeOffs.reduce((sum, t) => sum + Number(t.taken_days || 0), 0);
+          const total = Number(this.yearlyAllowance || 0);
+
+          this.totals = {
+            total,
+            unused: Math.max(total - taken, 0),
+            unplanned: Math.max(total - planned, 0)
+          };
+        },
+
+        buildMonths() {
+          const now = new Date();
+          const offsets = [-1, 0, 1];
+          const holidayMap = Object.fromEntries(this.holidays.map((h) => [h.date, h.title]));
+          const today = toDateString(now);
+
+          this.months = offsets.map((offset) => {
+            const date = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+            const year = date.getFullYear();
+            const month = date.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const firstDay = (new Date(year, month, 1).getDay() + 6) % 7;
+            const days = [];
+
+            for (let i = 0; i < firstDay; i++) {
+              days.push({ key: `empty-${i}`, empty: true, tags: [] });
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+              const dateKey = toDateString(new Date(year, month, day));
+              const tags = [];
+              const holiday = holidayMap[dateKey];
+              if (holiday) tags.push({ type: 'holiday', text: holiday });
+
+              const dayTimeOffs = this.timeOffs.filter((item) => dateKey >= item.start_date && dateKey <= item.end_date);
+              dayTimeOffs.forEach((item) => tags.push({ type: 'timeoff', text: item.title }));
+
+              days.push({
+                key: dateKey,
+                empty: false,
+                date: dateKey,
+                isToday: dateKey === today,
+                hasHoliday: Boolean(holiday),
+                hasTimeOff: dayTimeOffs.length > 0,
+                tags
+              });
+            }
+
+            return {
+              key: `${year}-${month}`,
+              label: date.toLocaleString(undefined, { month: 'long', year: 'numeric' }),
+              days
+            };
+          });
+        }
+      };
+    }
+  </script>
+</body>
+</html>
