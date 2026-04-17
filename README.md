@@ -25,7 +25,7 @@ A planner for my time off
 1. Download and run PocketBase in this repository root.
 2. Open PocketBase Admin UI and create an admin account.
 3. Import collection schema from:
-   - `/home/runner/work/time-off-planner/time-off-planner/pocketbase/collection-schema.json`
+   - `./pocketbase/collection-schema.json`
 4. Ensure static file serving is enabled (default PocketBase behavior for `pb_public`).
 5. Open:
    - `http://127.0.0.1:8090/`
