@@ -30,6 +30,26 @@ A planner for my time off
 5. Open:
    - `http://127.0.0.1:8090/`
 
+## Docker
+Build the image:
+
+```bash
+docker build -t time-off-planner .
+```
+
+Run it with persistent PocketBase data:
+
+```bash
+docker run --rm -p 8090:8090 -v time-off-planner-data:/pb/pb_data time-off-planner
+```
+
+Then open:
+
+- `http://127.0.0.1:8090/`
+- `http://127.0.0.1:8090/_/`
+
+The container downloads PocketBase `0.36.9` for Linux during build, applies `pb_migrations` on startup, and stores app data in `/pb/pb_data`.
+
 ## Holiday import format
 ### JSON
 ```json
